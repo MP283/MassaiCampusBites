@@ -213,6 +213,7 @@ Production build: `npm run build`, then `npm run preview`.
 | `REMINDER_MINUTES` | no | `15` | Orders idle longer than this in `PLACED`/`ACCEPTED` get a reminder |
 | `REMINDER_CHECK_SECONDS` | no | `60` | How often the background task scans |
 | `CORS_ORIGINS` | no | `http://localhost:5173,...` | Allowed frontend origins (comma-separated) |
+| `CORS_ORIGIN_REGEX` | no | any `localhost` / `127.0.0.1` port | Extra allowed origins as a regex (so Vite on 5174/5175 also works). Leave empty to use the default |
 | `SEED_DEMO_DATA` | no | `true` | Create demo users, restaurants and orders when the DB is empty |
 
 Generate a secret: `python -c "import secrets; print(secrets.token_hex(32))"`
@@ -422,7 +423,7 @@ uvicorn app.main:app --reload --port 8000
 | Problem | Fix |
 |---|---|
 | Frontend shows "Cannot reach the server at http://localhost:8000" | The backend isn't running: `docker compose --env-file backend/.env up`. Check `docker compose logs backend` |
-| CORS error in the browser console | Add your frontend URL to `CORS_ORIGINS` in `backend/.env` and restart the backend |
+| CORS error / "Cannot reach the server" while the backend is up | Any `localhost` port is allowed by default. For other hosts add the URL to `CORS_ORIGINS` in `backend/.env` and restart the backend (`docker compose --env-file backend/.env up -d --build`) |
 | `password authentication failed` from Postgres | The volume was created with different credentials: `docker compose down -v`, then start again |
 | Port 8000 / 5432 / 5173 already in use | Stop the other program, or change the port mapping in `docker-compose.yml` / `vite.config.js` |
 | AI says "Offline insights" | `OPENAI_API_KEY` is empty; add it to `backend/.env` and restart the backend container |

@@ -24,4 +24,6 @@ REMINDER_MINUTES = int(os.getenv("REMINDER_MINUTES", "15"))
 REMINDER_CHECK_SECONDS = int(os.getenv("REMINDER_CHECK_SECONDS", "60"))
 
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
+# Also allow any localhost port in development (Vite moves to 5174, 5175... if 5173 is busy). Set empty to disable.
+CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$").strip() or None
 SEED_DEMO_DATA = os.getenv("SEED_DEMO_DATA", "true").lower() != "false"

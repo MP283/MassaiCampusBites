@@ -213,7 +213,7 @@ Production build: `npm run build`, then `npm run preview`.
 | `REMINDER_MINUTES` | no | `15` | Orders idle longer than this in `PLACED`/`ACCEPTED` get a reminder |
 | `REMINDER_CHECK_SECONDS` | no | `60` | How often the background task scans |
 | `CORS_ORIGINS` | no | `http://localhost:5173,...` | Allowed frontend origins (comma-separated) |
-| `CORS_ORIGIN_REGEX` | no | any `localhost` / `127.0.0.1` port | Extra allowed origins as a regex (so Vite on 5174/5175 also works). Leave empty to use the default |
+| `CORS_ORIGIN_REGEX` | no | any `localhost` / `127.0.0.1` port | Extra allowed origins as a regex (so Vite on 5174/5175 also works). Leave it unset to use the default |
 | `SEED_DEMO_DATA` | no | `true` | Create demo users, restaurants and orders when the DB is empty |
 
 Generate a secret: `python -c "import secrets; print(secrets.token_hex(32))"`

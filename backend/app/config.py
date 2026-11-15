@@ -4,30 +4,24 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# backend/.env is the single source of truth locally (overrides stray system variables).
+# Inside Docker the file isn't copied into the image; compose injects the variables instead.
+load_dotenv(BASE_DIR / ".env", override=True)
 
-PORT = int(os.getenv("PORT", "5000"))
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/ai_test_platform")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "ai_test_platform")
-MONGO_MEMORY_FALLBACK = os.getenv("MONGO_MEMORY_FALLBACK", "true").lower() != "false"
+# SQLite is used when DATABASE_URL is not set (local runs without Docker).
+# Docker Compose sets DATABASE_URL to the PostgreSQL container.
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip() or f"sqlite:///{(BASE_DIR / 'campusbite.db').as_posix()}"
+
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
-JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "7"))
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", str(60 * 24)))
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+AI_RATE_LIMIT_PER_MINUTE = int(os.getenv("AI_RATE_LIMIT_PER_MINUTE", "5"))
 
-SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "").strip()
-SMTP_PASS = os.getenv("SMTP_PASS", "").strip()
-SMTP_FROM = os.getenv("SMTP_FROM", "AI Test Platform <no-reply@example.com>").strip().strip('"')
+REMINDER_MINUTES = int(os.getenv("REMINDER_MINUTES", "15"))
+REMINDER_CHECK_SECONDS = int(os.getenv("REMINDER_CHECK_SECONDS", "60"))
 
-TESSERACT_CMD = os.getenv("TESSERACT_CMD", "").strip()
-
-UPLOAD_ROOT = BASE_DIR / "uploads"
-for sub in ("content", "submissions", "logos"):
-    (UPLOAD_ROOT / sub).mkdir(parents=True, exist_ok=True)
-
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
+SEED_DEMO_DATA = os.getenv("SEED_DEMO_DATA", "true").lower() != "false"

@@ -1,6 +1,5 @@
-# Rules for the whole project live in the root .gitignore
+# Project-wide rules live in the root .gitignore
 .env
 .venv/
 __pycache__/
-uploads/*
-!uploads/.gitkeep
+*.db

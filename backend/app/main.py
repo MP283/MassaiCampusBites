@@ -1,42 +1,55 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
-from . import config, db
-from .routers import analytics, auth, submissions, teams, tests, uploads
-from .services import gemini, mailer, ocr
+from . import config
+from .database import Base, SessionLocal, engine
+from .middleware import RequestLoggingMiddleware
+from .routers import ai, auth, delivery, orders, owner, restaurants
+from .services.reminders import reminder_loop
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("campusbite")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db.connect()
-    if db.get_db().users.count_documents({}) == 0:
-        from .seed import seed_demo
+    Base.metadata.create_all(bind=engine)  # creates tables if they don't exist
+    log.info("Database: %s", engine.url.render_as_string(hide_password=True))
+    if config.SEED_DEMO_DATA:
+        from .seed import seed
 
-        seed_demo(quiet=False)
-    print(f"[ai] Gemini: {'enabled (' + config.GEMINI_MODEL + ')' if gemini.available() else 'not configured - using offline template generator'}")
-    print(f"[ocr] Tesseract: {'found' if ocr.tesseract_available() else 'not found'}")
-    print(f"[mail] {'SMTP ' + config.SMTP_HOST if mailer.configured() else 'console mode (emails are printed here)'}")
+        with SessionLocal() as db:
+            seed(db)
+    log.info("OpenAI: %s", f"enabled ({config.OPENAI_MODEL})" if config.OPENAI_API_KEY else "not configured - offline insights")
+    stop = asyncio.Event()
+    task = asyncio.create_task(reminder_loop(stop))
     yield
+    stop.set()
+    await task
 
 
-app = FastAPI(title="AI Test Platform API", version="1.0.0", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[config.FRONTEND_URL, "http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+    title="CampusBite API",
+    version="1.0.0",
+    description="Restaurant ordering & delivery platform. Authenticate with **POST /api/auth/login**, then click "
+                "**Authorize** and paste the `access_token`.",
+    lifespan=lifespan,
 )
+
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"],
+                   allow_headers=["*"], expose_headers=["X-Process-Time", "X-Request-ID"])
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_handler(request: Request, exc: RequestValidationError):
+async def validation_error(request: Request, exc: RequestValidationError):
     errs = exc.errors()
     first = errs[0] if errs else {}
     field = ".".join(str(p) for p in first.get("loc", []) if p not in ("body", "query", "path"))
@@ -44,25 +57,17 @@ async def validation_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": msg, "errors": [{"loc": e.get("loc"), "msg": e.get("msg")} for e in errs]})
 
 
-@app.exception_handler(Exception)
-async def unhandled(request: Request, exc: Exception):
-    print(f"[error] {request.method} {request.url.path}: {exc!r}")
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
-
-
-for r in (auth.router, uploads.router, tests.router, submissions.router, teams.router, teams.students_router, analytics.router):
+for r in (auth.router, restaurants.router, orders.router, owner.router, delivery.router, ai.router):
     app.include_router(r)
 
-app.mount("/uploads", StaticFiles(directory=str(config.UPLOAD_ROOT)), name="uploads")
 
-
-@app.get("/api/health")
+@app.get("/api/health", tags=["Health"])
 def health():
-    return {"status": "ok", "database": db.mode, "gemini": gemini.available(), "tesseract": ocr.tesseract_available(),
-            "email": "smtp" if mailer.configured() else "console"}
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return {"status": "ok", "database": engine.dialect.name, "openai": bool(config.OPENAI_API_KEY)}
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("app.main:app", host="0.0.0.0", port=config.PORT, reload=True)
+@app.get("/", include_in_schema=False)
+def root():
+    return {"name": "CampusBite API", "docs": "/docs", "health": "/api/health"}
